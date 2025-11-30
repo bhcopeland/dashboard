@@ -463,6 +463,18 @@ fleming = ">=0.6.0"
 pytz = ">=2015.6"
 
 [[package]]
+name = "django-zeal"
+version = "2.0.4"
+description = "Detect N+1s in your Django app"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "django_zeal-2.0.4-py3-none-any.whl", hash = "sha256:c37b0a7d203572d8eb8462a601f19dedfdf82324a25c7eb7273afdc52fc519fa"},
+    {file = "django_zeal-2.0.4.tar.gz", hash = "sha256:934cd3968c1ede3f3ec5314c4da285ef4796f4b6de1f95870c5999370280e17e"},
+]
+
+[[package]]
 name = "djangorestframework"
 version = "3.15.2"
 description = "Web APIs for Django, made easy."
@@ -1884,4 +1896,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "2c05ff5a8440a7e7c127c036069f6ea338a0e84582afc8779c1298357c67ce7b"
+content-hash = "3aacfeeab8686bb1d2890bfe3064d337f03a2dedc8d71797f06eaa6c2e1565ee"

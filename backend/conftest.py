@@ -1,8 +1,18 @@
-import tomllib
-from pytest import Item
 import os
+import tomllib
+
 import django
+import pytest
 from django.conf import settings
+from pytest import Item
+from zeal import zeal_context
+
+
+@pytest.fixture(scope="function", autouse=True)
+def use_zeal():
+    """Enable zeal N+1 detection for all tests."""
+    with zeal_context():
+        yield
 
 
 def pytest_addoption(parser):

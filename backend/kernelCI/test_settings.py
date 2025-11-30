@@ -5,6 +5,15 @@ Test-specific Django settings for integration tests with local database.
 import os
 from kernelCI.settings import *  # noqa: F403, F401
 
+# Django-zeal for N+1 query detection (always enabled in tests)
+if "zeal" not in INSTALLED_APPS:  # noqa: F405
+    INSTALLED_APPS = INSTALLED_APPS + ["zeal"]  # noqa: F405
+    MIDDLEWARE = ["zeal.middleware.zeal_middleware"] + MIDDLEWARE  # noqa: F405
+
+ZEAL_RAISE = True
+ZEAL_NPLUSONE_THRESHOLD = 2
+ZEAL_SHOW_ALL_CALLERS = True
+
 # Override database configuration for tests
 DATABASES = {
     "default": {

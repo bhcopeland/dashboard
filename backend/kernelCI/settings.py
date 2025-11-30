@@ -333,6 +333,11 @@ if DEBUG:
     SECURE_HSTS_SECONDS = 3600
     CACHE_TIMEOUT = 0
 
+    # Enable django-zeal for N+1 query detection in development
+    INSTALLED_APPS.append("zeal")
+    MIDDLEWARE.append("zeal.middleware.zeal_middleware")
+    ZEAL_SHOW_ALL_CALLERS = True
+
 
 # Base logging configuration. Individual loggers must be set in order to log messages.
 LOGGING = {
