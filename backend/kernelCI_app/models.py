@@ -601,6 +601,7 @@ class HardwareRegistryPlatform(models.Model):
     url = models.TextField(blank=True, null=True)
     details = models.TextField(blank=True, null=True)
     form_factor = models.TextField(blank=True, null=True)
+    compatible = ArrayField(models.TextField(), blank=True, null=True)
 
     class Meta:
         db_table = "hardware_registry_platforms"

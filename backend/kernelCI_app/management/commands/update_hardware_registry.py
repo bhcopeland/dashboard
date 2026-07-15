@@ -27,6 +27,8 @@ def get_update_fields(model):
     ]
 
 
+HARDWARE_REGISTRY_NAMESPACE = "hardware_registry"
+
 EXPECTED_SECTIONS = (
     "silicon_vendors",
     "platform_vendors",
@@ -34,6 +36,33 @@ EXPECTED_SECTIONS = (
     "system_modules",
     "platforms",
 )
+
+
+def unwrap_namespace(data):
+    """Unwrap the single ``hardware_registry`` top-level key if present.
+
+    kernelci-pipeline nests every registry file's content under a single
+    ``hardware_registry`` key so that loading ``config/`` recursively does
+    not collide with the pipeline config namespace. Older files were not
+    wrapped, so pass those through unchanged.
+    """
+    if isinstance(data, dict) and list(data.keys()) == [HARDWARE_REGISTRY_NAMESPACE]:
+        return data[HARDWARE_REGISTRY_NAMESPACE]
+    return data
+
+
+def filter_entity_fields(model, entry):
+    """Keep only entry keys that map to a concrete model field.
+
+    Registry entities may carry fields the dashboard model does not store
+    (e.g. ``memory_mb``, or future schema additions), so instantiating the
+    model with the raw dict would raise ``TypeError``. Returns
+    ``(kept, dropped)`` where ``dropped`` is the sorted list of ignored keys.
+    """
+    allowed = {f.attname for f in model._meta.concrete_fields}
+    kept = {k: v for k, v in entry.items() if k in allowed}
+    dropped = sorted(k for k in entry if k not in allowed)
+    return kept, dropped
 
 
 def _is_url(value: str) -> bool:
@@ -88,9 +117,11 @@ class Command(BaseCommand):
             raw = self._read_file(Path(source).expanduser().resolve())
 
         try:
-            return yaml.safe_load(raw)
+            data = yaml.safe_load(raw)
         except yaml.YAMLError as exc:
             raise CommandError(f"Invalid YAML: {exc}") from exc
+
+        return unwrap_namespace(data)
 
     def _resolve_relative(self, base: str, relative: str) -> str:
         """Resolve a relative filename against the base index location."""
@@ -130,46 +161,32 @@ class Command(BaseCommand):
                 )
             )
 
-        silicon_vendors = data["silicon_vendors"] or {}
-        platform_vendors = data["platform_vendors"] or {}
-        processors = data["processors"] or {}
-        system_modules = data["system_modules"] or {}
-        platforms = data["platforms"] or {}
-
-        HardwareRegistrySiliconVendor.objects.bulk_create(
-            [HardwareRegistrySiliconVendor(**sv) for sv in silicon_vendors.values()],
-            update_conflicts=True,
-            unique_fields=["id"],
-            update_fields=get_update_fields(HardwareRegistrySiliconVendor),
+        # Parents before children so foreign keys resolve on insert.
+        section_models = (
+            (data["silicon_vendors"] or {}, HardwareRegistrySiliconVendor),
+            (data["processors"] or {}, HardwareRegistryProcessor),
+            (data["platform_vendors"] or {}, HardwareRegistryPlatformVendor),
+            (data["system_modules"] or {}, HardwareRegistrySystemModule),
+            (data["platforms"] or {}, HardwareRegistryPlatform),
         )
-
-        HardwareRegistryProcessor.objects.bulk_create(
-            [HardwareRegistryProcessor(**p) for p in processors.values()],
-            update_conflicts=True,
-            unique_fields=["id"],
-            update_fields=get_update_fields(HardwareRegistryProcessor),
-        )
-
-        HardwareRegistryPlatformVendor.objects.bulk_create(
-            [HardwareRegistryPlatformVendor(**pv) for pv in platform_vendors.values()],
-            update_conflicts=True,
-            unique_fields=["id"],
-            update_fields=get_update_fields(HardwareRegistryPlatformVendor),
-        )
-
-        HardwareRegistrySystemModule.objects.bulk_create(
-            [HardwareRegistrySystemModule(**sm) for sm in system_modules.values()],
-            update_conflicts=True,
-            unique_fields=["id"],
-            update_fields=get_update_fields(HardwareRegistrySystemModule),
-        )
-
-        HardwareRegistryPlatform.objects.bulk_create(
-            [HardwareRegistryPlatform(**p) for p in platforms.values()],
-            update_conflicts=True,
-            unique_fields=["id"],
-            update_fields=get_update_fields(HardwareRegistryPlatform),
-        )
+        for entries, model in section_models:
+            instances = []
+            for key, entry in entries.items():
+                kept, dropped = filter_entity_fields(model, entry)
+                if dropped:
+                    self.stderr.write(
+                        self.style.WARNING(
+                            f"{model.__name__} '{key}' in {source}: "
+                            f"ignoring unknown fields: {', '.join(dropped)}"
+                        )
+                    )
+                instances.append(model(**kept))
+            model.objects.bulk_create(
+                instances,
+                update_conflicts=True,
+                unique_fields=["id"],
+                update_fields=get_update_fields(model),
+            )
 
         self.stdout.write(self.style.SUCCESS(f"Processed: {source}"))
 
